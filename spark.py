@@ -5,7 +5,6 @@ from elasticsearch import Elasticsearch
 from cassandra.cluster import Cluster
 import json
 
-# Crear la sesión de Spark con configuración específica
 spark = SparkSession.builder \
     .appName("WazeIncidentProcessor") \
     .config("spark.es.nodes", "localhost") \
@@ -14,11 +13,11 @@ spark = SparkSession.builder \
     .config("spark.cassandra.connection.host", "localhost") \
     .getOrCreate()
 
-# Configurar el nivel de log para ver más información
+
 spark.sparkContext.setLogLevel("INFO")
 print("Sesión Spark creada exitosamente")
 
-# Definir el schema basado en la estructura JSON que mostraste
+
 schema = StructType([
     StructField("type", StringType(), True),
     StructField("position", StringType(), True),
@@ -27,7 +26,7 @@ schema = StructType([
 
 print("Intentando conectar con Kafka...")
 
-# Leer datos de Kafka con más opciones de configuración
+
 df = spark.readStream \
     .format("kafka") \
     .option("kafka.bootstrap.servers", "localhost:9093") \
@@ -38,10 +37,10 @@ df = spark.readStream \
 
 print("Conexión con Kafka establecida")
 
-# Convertir el valor de Kafka (que está en formato binario) a string
+
 value_df = df.selectExpr("CAST(value AS STRING)")
 
-# Parsear el JSON
+
 parsed_df = value_df.select(
     from_json(col("value"), schema).alias("data")
 ).select("data.*")
@@ -49,15 +48,15 @@ parsed_df = value_df.select(
 print("Esquema del DataFrame:")
 parsed_df.printSchema()
 
-# Función para procesar cada batch
+
 def process_batch(df, epoch_id):
     print(f"Procesando batch {epoch_id}")
     print(f"Número de registros en este batch: {df.count()}")
     
-    # Mostrar algunos registros de ejemplo
+    
     df.show(truncate=False)
     
-    # Escribir a Elasticsearch
+  
     try:
         df.write \
             .format("org.elasticsearch.spark.sql") \
@@ -71,7 +70,7 @@ def process_batch(df, epoch_id):
     except Exception as e:
         print(f"Error escribiendo en Elasticsearch: {str(e)}")
     
-    # Escribir a Cassandra
+   
     try:
         df.write \
             .format("org.apache.spark.sql.cassandra") \
@@ -84,7 +83,7 @@ def process_batch(df, epoch_id):
     except Exception as e:
         print(f"Error escribiendo en Cassandra: {str(e)}")
 
-# Iniciar el streaming con procesamiento por batch
+
 query = parsed_df.writeStream \
     .foreachBatch(process_batch) \
     .outputMode("append") \
@@ -92,7 +91,7 @@ query = parsed_df.writeStream \
 
 print("Streaming iniciado")
 
-# Esperar a que termine el streaming
+
 try:
     query.awaitTermination()
 except KeyboardInterrupt:

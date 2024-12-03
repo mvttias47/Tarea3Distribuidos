@@ -29,7 +29,7 @@ services:
       - kafka_data1:/bitnami/kafka
     networks:
       - kafka-network
-
+  
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
     depends_on:
@@ -120,3 +120,4 @@ networks:
     driver: bridge
   spark-network:
     driver: bridge
+    
