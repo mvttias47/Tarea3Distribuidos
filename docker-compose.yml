@@ -1,0 +1,156 @@
+version: '3.8'
+
+networks:
+  app-network:
+    driver: bridge
+
+services:
+  zookeeper:
+    image: bitnami/zookeeper:3.9.1
+    container_name: zookeeper
+    tmpfs:
+      - "/zktmp"
+    environment:
+      ALLOW_ANONYMOUS_LOGIN: 'yes'
+    ports:
+      - "2181:2181"
+    networks:
+      - app-network
+
+  kafka1:
+    image: bitnami/kafka:3.7.0
+    container_name: kafka1
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_CFG_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_CFG_LISTENERS: INTERNAL://:9092,EXTERNAL://0.0.0.0:9093
+      KAFKA_CFG_ADVERTISED_LISTENERS: INTERNAL://kafka1:9092,EXTERNAL://kafka1:9093
+      KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_CFG_INTER_BROKER_LISTENER_NAME: INTERNAL
+      ALLOW_PLAINTEXT_LISTENER: 'yes'
+      KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: 'true'
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+    volumes:
+      - kafka_data_1:/bitnami/kafka
+    networks:
+      - app-network
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    depends_on:
+      - kafka1
+    ports:
+      - "8090:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka1:9092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+    networks:
+      - app-network
+
+  topic:
+    build:
+      context: .
+      dockerfile: DockerfileTopic
+    container_name: topic
+    depends_on:
+      - kafka1
+    restart: always
+    ports:
+      - "8000:8000"
+    networks:
+      - app-network
+
+  spark-master:
+    image: bitnami/spark:3.4.1
+    container_name: spark-master
+    environment:
+      SPARK_MODE: master
+      JAVA_OPTS: "-Djava.awt.headless=true -Dsun.net.inetaddr.ttl=30"
+    ports:
+      - "7077:7077"
+      - "8080:8080"
+    networks:
+      - app-network
+
+  spark-worker-1:
+    image: bitnami/spark:3.4.1
+    container_name: spark-worker-1
+    environment:
+      SPARK_MODE: worker
+      SPARK_MASTER_URL: spark://spark-master:7077
+      SPARK_WORKER_CORES: 2
+      SPARK_WORKER_MEMORY: 4g
+    depends_on:
+      - spark-master
+    networks:
+      - app-network
+
+  consumer-spark:
+    build:
+      context: .
+      dockerfile: DockerfileConsumer
+    container_name: consumer-spark
+    depends_on:
+      - kafka1
+      - cassandra
+      - elasticsearch
+    restart: always
+    environment:
+      - SPARK_MASTER=spark://spark-master:7077
+    networks:
+      - app-network
+
+  scrapper:
+    build:
+      context: .
+      dockerfile: DockerfileScrapper
+    container_name: scrapper
+    depends_on:
+      - kafka1
+    networks:
+      - app-network
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.5
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    networks:
+      - app-network
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.17.5
+    container_name: kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    networks:
+      - app-network
+
+  cassandra:
+    image: cassandra:4.0
+    container_name: cassandra
+    environment:
+      - CASSANDRA_CLUSTER_NAME=MyCluster
+      - CASSANDRA_NUM_TOKENS=256
+      - CASSANDRA_RPC_ADDRESS=0.0.0.0
+      - CASSANDRA_START_RPC=true
+    ports:
+      - "9042:9042"
+    networks:
+      - app-network
+
+volumes:
+  kafka_data_1:
+    driver: local
+

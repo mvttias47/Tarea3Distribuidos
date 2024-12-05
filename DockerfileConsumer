@@ -1,0 +1,13 @@
+FROM bitnami/spark:3.4.1
+
+WORKDIR /app
+
+# Copiar el código del consumidor
+COPY . .
+
+# Configurar Python para que no use buffer
+ENV PYTHONUNBUFFERED=1
+
+# Usar spark-submit con los paquetes necesarios, incluyendo el conector de Cassandra
+CMD ["spark-submit", "--packages", "org.apache.spark:spark-sql-kafka-0-10_2.12:3.4.1,org.elasticsearch:elasticsearch-spark-30_2.12:8.6.2,com.datastax.spark:spark-cassandra-connector_2.12:3.3.0", "/app/consumer.py"]
+

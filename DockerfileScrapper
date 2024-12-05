@@ -1,0 +1,30 @@
+FROM python:3.9-slim
+
+# Instalar dependencias necesarias
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    wget \
+    curl \
+    gnupg \
+    firefox-esr \
+    && wget --tries=5 -O /tmp/geckodriver.tar.gz https://github.com/mozilla/geckodriver/releases/download/v0.32.2/geckodriver-v0.32.2-linux64.tar.gz \
+    && tar -xzf /tmp/geckodriver.tar.gz -C /usr/local/bin/ \
+    && rm /tmp/geckodriver.tar.gz \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+
+# Configurar el directorio de trabajo
+WORKDIR /app
+
+# Copiar el archivo de requisitos y los scripts al contenedor
+COPY requirementscrapper.txt .
+COPY scrapper.py .
+
+# Instalar dependencias de Python
+RUN pip install --no-cache-dir -r requirementscrapper.txt
+
+# Configurar una variable de entorno para evitar el buffer en los logs de Python
+ENV PYTHONUNBUFFERED=1
+
+# Mantener el contenedor ejecutándose en modo inactivo
+CMD ["tail", "-f", "/dev/null"]
+
